@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build artifacts
+dist/
+**/dist/
+build/
+**/build/
+
+# Environment files
+.env
+.env.*
+**/ .env
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+
+# TypeScript build info
+*.tsbuildinfo
+**/*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.agents/
+**/.agents/
