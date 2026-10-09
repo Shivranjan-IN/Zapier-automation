@@ -15,22 +15,23 @@ model User {
 }
 
 model Zap {
-  id        String   @id @default(dbgenerated("gen_random_uuid()"))
-  triggerId String   @default("")
-  userId    Int
-  actions   Action[]
-  trigger   Trigger?
-  user      User     @relation(fields: [userId], references: [id])
-  zapRuns   ZapRun[]
+  id       String    @id @default(dbgenerated("gen_random_uuid()"))
+  userId   Int
+  actions  Action[]
+  triggers Trigger[]
+  user     User      @relation(fields: [userId], references: [id])
+  zapRuns  ZapRun[]
 }
 
 model Trigger {
   id        String           @id @default(dbgenerated("gen_random_uuid()"))
-  zapId     String           @unique
+  zapId     String
   triggerId String
   metadata  Json             @default("{}")
   type      AvailableTrigger @relation(fields: [triggerId], references: [id])
   zap       Zap              @relation(fields: [zapId], references: [id])
+
+  @@index([zapId])
 }
 
 model Action {
@@ -41,6 +42,7 @@ model Action {
   sortingOrder Int             @default(0)
   type         AvailableAction @relation(fields: [actionId], references: [id])
   zap          Zap             @relation(fields: [zapId], references: [id])
+  zapRunSteps  ZapRunStep[]
 }
 
 model AvailableAction {
@@ -61,8 +63,29 @@ model ZapRun {
   id           String        @id @default(dbgenerated("gen_random_uuid()"))
   zapId        String
   metadata     Json
+  createdAt    DateTime      @default(now())
+  status       String        @default("PENDING")
+  startedAt    DateTime?
+  completedAt  DateTime?
   zap          Zap           @relation(fields: [zapId], references: [id])
   zapRunOutbox ZapRunOutbox?
+  steps        ZapRunStep[]
+}
+
+model ZapRunStep {
+  id           String   @id @default(dbgenerated("gen_random_uuid()"))
+  zapRunId     String
+  actionId     String
+  sortingOrder Int      @default(0)
+  status       String   @default("PENDING")
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  output       Json?
+  error        String?
+  zapRun       ZapRun   @relation(fields: [zapRunId], references: [id], onDelete: Cascade)
+  action       Action   @relation(fields: [actionId], references: [id], onDelete: Cascade)
+
+  @@index([zapRunId])
 }
 
 model ZapRunOutbox {
@@ -70,5 +93,3 @@ model ZapRunOutbox {
   zapRunId String @unique
   zapRun   ZapRun @relation(fields: [zapRunId], references: [id])
 }
-
- 

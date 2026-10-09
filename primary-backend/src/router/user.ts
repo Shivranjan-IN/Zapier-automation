@@ -83,12 +83,13 @@ router.post("/signin", async (req, res) => {
 
     router.get("/", authMiddleware, async  (req, res) => {
         //@ts-ignore
-        const id = req.id;
+        const id = parseInt(req.id);
         const user = await prismaClient.user.findFirst({
             where: {
                 id: id
             },
             select: {
+                id: true,
                 name: true,
                 email: true
             }

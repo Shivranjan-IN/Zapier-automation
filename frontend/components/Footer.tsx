@@ -1,6 +1,8 @@
 "use client"
 import { useRouter } from "next/navigation"
 
+const CURRENT_YEAR = new Date().getFullYear()
+
 const footerLinks = {
     Product: ["Zaps", "Tables", "Interfaces", "AI Agents", "Pricing"],
     Solutions: ["Marketing", "Sales", "Engineering", "Operations", "IT"],
@@ -81,7 +83,7 @@ export const Footer = () => {
             {/* Bottom bar */}
             <div className="border-t border-gray-800">
                 <div className="max-w-7xl mx-auto px-8 py-5 flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-gray-600">
-                    <span>© {new Date().getFullYear()} _Zapier, Inc. All rights reserved.</span>
+                    <span>© {CURRENT_YEAR} _Zapier, Inc. All rights reserved.</span>
                     <div className="flex gap-6">
                         <button className="hover:text-amber-500 transition-colors cursor-pointer bg-transparent border-none">Privacy Policy</button>
                         <button className="hover:text-amber-500 transition-colors cursor-pointer bg-transparent border-none">Terms of Service</button>
