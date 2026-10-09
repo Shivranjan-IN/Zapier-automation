@@ -1,7 +1,7 @@
 "use client"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import axios from "axios"
+import { api, getErrorMessage } from "@/lib/api"
 
 export default function LoginPage() {
     const router = useRouter()
@@ -13,41 +13,25 @@ export default function LoginPage() {
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault()
         setLoading(true)
-        // TODO: wire up to backend
-     try {const response = await axios.post("http://localhost:3001/api/v1/user/signin",{
-            
-            username: email,
-            password
-         })
-    
-         const token = response.data.token
-         localStorage.setItem("token", token)
-         setLoading(false)
-         setTimeout(() => {
-            router.push("/dashboard")
-        }, 1500)
-    }
-    catch (error){
-         if (axios.isAxiosError(error)) {
-            
-            console.error(
-                "Login failed:",
-                error.response?.data
-            )
+        setMessage("")
+        try {
+            const response = await api.post("/user/signin", {
+                username: email,
+                password
+            })
 
-            alert(
-                error.response?.data?.message ||
-                "Login failed"
-            )
-            router.push("/login")
-        } else {
-            console.error(error)
-            alert("Something went wrong")
-            router.push("/login")
+            const token = response.data.token
+            if (!token) {
+                throw new Error("No token returned by server")
+            }
+            localStorage.setItem("token", token)
+            router.push("/dashboard")
+        } catch (error) {
+            console.error("Login failed:", error)
+            setMessage(getErrorMessage(error, "Login failed"))
+        } finally {
+            setLoading(false)
         }
-    } finally {
-        setLoading(false)
-    }
     }
 
     return (
@@ -150,6 +134,12 @@ export default function LoginPage() {
                                     className="border border-gray-300 rounded-lg px-4 py-3 text-sm outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 transition-all"
                                 />
                             </div>
+
+                            {message && (
+                                <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                                    {message}
+                                </p>
+                            )}
 
                             <button
                                 id="login-submit"

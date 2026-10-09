@@ -1,7 +1,7 @@
 "use client"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import axios from "axios"
+import { api, getErrorMessage } from "@/lib/api"
 export default function SignupPage() {
     const router = useRouter()
     const [name, setName] = useState("")
@@ -13,38 +13,24 @@ export default function SignupPage() {
     const handleSignup = async (e: React.FormEvent) => {
         e.preventDefault()
         setLoading(true)
-        
-    try {
-         const response = await axios.post("http://localhost:3001/api/v1/user/signup",{
-            username: email,
-            name,
-            password
-         })
-         console.log( "Signup successful:",response.data )
-         setMessage(response.data.message)
+        setMessage("")
 
-         setLoading(false)
-       setTimeout(() => {
-            router.push("/login")
-        }, 1500)
-    } catch (error) {
-        if (axios.isAxiosError(error)) {
-            console.error(
-                "Signup failed:",
-                error.response?.data
-            )
-
-            alert(
-                error.response?.data?.message ||
-                "Signup failed"
-            )
-        } else {
-            console.error(error)
-            alert("Something went wrong")
+        try {
+            const response = await api.post("/user/signup", {
+                username: email,
+                name,
+                password
+            })
+            setMessage(response.data.message || "Account created")
+            setTimeout(() => {
+                router.push("/login")
+            }, 1200)
+        } catch (error) {
+            console.error("Signup failed:", error)
+            setMessage(getErrorMessage(error, "Signup failed"))
+        } finally {
+            setLoading(false)
         }
-    } finally {
-        setLoading(false)
-    }
     }
     
 
@@ -156,6 +142,12 @@ export default function SignupPage() {
                                     className="border border-gray-300 rounded-lg px-4 py-3 text-sm outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 transition-all"
                                 />
                             </div>
+
+                            {message && (
+                                <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                                    {message}
+                                </p>
+                            )}
 
                             <button
                                 id="signup-submit"
