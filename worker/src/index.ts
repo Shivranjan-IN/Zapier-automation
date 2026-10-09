@@ -1,4 +1,5 @@
 import "dotenv/config";
+import dns from "node:dns";
 import http from "node:http";
 import { PrismaClient, Prisma } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -50,8 +51,16 @@ function getMailer(): Transporter | null {
             host: process.env.SMTP_HOST || "smtp.gmail.com",
             port: Number(process.env.SMTP_PORT || 465),
             secure: true,
-            auth: { user, pass }
-        });
+            auth: { user, pass },
+            // Render free has no IPv6 egress. Force IPv4 DNS resolution so
+            // nodemailer never hangs on an unreachable AAAA address.
+            lookup: (hostname: string, options: unknown, callback: unknown) => {
+                dns.lookup(hostname, { ...(options as object), family: 4 }, callback as never);
+            },
+            connectionTimeout: 15_000,
+            greetingTimeout: 15_000,
+            socketTimeout: 30_000
+        } as any);
     }
     return mailer;
 }
