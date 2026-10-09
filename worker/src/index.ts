@@ -9,6 +9,10 @@ import type { Transporter } from "nodemailer";
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
 
+// Render free has no IPv6 egress. Prefer IPv4 for all outbound sockets so
+// we never hang on an unreachable AAAA address (e.g. smtp.gmail.com).
+dns.setDefaultResultOrder("ipv4first");
+
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -52,15 +56,10 @@ function getMailer(): Transporter | null {
             port: Number(process.env.SMTP_PORT || 465),
             secure: true,
             auth: { user, pass },
-            // Render free has no IPv6 egress. Force IPv4 DNS resolution so
-            // nodemailer never hangs on an unreachable AAAA address.
-            lookup: (hostname: string, options: unknown, callback: unknown) => {
-                dns.lookup(hostname, { ...(options as object), family: 4 }, callback as never);
-            },
             connectionTimeout: 15_000,
             greetingTimeout: 15_000,
             socketTimeout: 30_000
-        } as any);
+        });
     }
     return mailer;
 }
