@@ -1,19 +1,12 @@
 import "dotenv/config";
-import { Kafka } from "kafkajs";
+import http from "node:http";
 import { PrismaClient, Prisma } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import nodemailer from "nodemailer";
 import type { Transporter } from "nodemailer";
 
-const TOPIC_NAME = "zap-events";
-
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
-
-const kafka = new Kafka({
-    clientId: 'zap-worker',
-    brokers: [process.env.KAFKA_BROKER || 'localhost:9092']
-});
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -307,42 +300,55 @@ async function processRun(zapRunId: string) {
     console.log(`[worker] run ${zapRunId} completed successfully`);
 }
 
-async function main() {
-    const consumer = kafka.consumer({ groupId: 'main-worker' });
-    await consumer.connect();
-    await consumer.subscribe({ topic: TOPIC_NAME, fromBeginning: true });
+async function handleRun(zapRunId: string) {
+    try {
+        await processRun(zapRunId);
+    } catch (error) {
+        console.error(`[worker] unexpected error for run ${zapRunId}:`, error);
+        try {
+            await prisma.zapRun.updateMany({
+                where: { id: zapRunId, status: { in: ["PENDING", "RUNNING"] } },
+                data: { status: "FAILED", completedAt: new Date() }
+            });
+        } catch (dbError) {
+            console.error("[worker] failed to mark run as FAILED:", dbError);
+        }
+    }
+}
 
-    await consumer.run({
-        autoCommit: false,
-        eachMessage: async ({ topic, partition, message }) => {
-            const zapRunId = message.value?.toString();
-            console.log(`[worker] message on ${topic}[${partition}] offset=${message.offset} run=${zapRunId}`);
-
-            if (zapRunId) {
-                try {
-                    await processRun(zapRunId);
-                } catch (error) {
-                    console.error(`[worker] unexpected error for run ${zapRunId}:`, error);
-                    try {
-                        await prisma.zapRun.updateMany({
-                            where: { id: zapRunId, status: { in: ["PENDING", "RUNNING"] } },
-                            data: { status: "FAILED", completedAt: new Date() }
-                        });
-                    } catch (dbError) {
-                        console.error("[worker] failed to mark run as FAILED:", dbError);
-                    }
-                }
+async function pollOutbox() {
+    console.log("[worker] polling ZapRunOutbox every 2s (no Kafka)");
+    while (true) {
+        try {
+            const pending = await prisma.zapRunOutbox.findMany({ take: 10 });
+            for (const row of pending) {
+                await handleRun(row.zapRunId);
+                await prisma.zapRunOutbox.deleteMany({ where: { id: row.id } });
             }
+        } catch (error) {
+            console.error("[worker] outbox poll error:", error);
+        }
+        await sleep(2000);
+    }
+}
 
-            await consumer.commitOffsets([{
-                topic: TOPIC_NAME,
-                partition: partition,
-                offset: (parseInt(message.offset) + 1).toString()
-            }]);
+function startHealthServer() {
+    const port = Number(process.env.PORT || 3003);
+    const server = http.createServer((req, res) => {
+        if (req.url === "/health") {
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ ok: true, service: "worker" }));
+        } else {
+            res.writeHead(404);
+            res.end();
         }
     });
+    server.listen(port, () => console.log(`[worker] health server listening on :${port}`));
+}
 
-    console.log("[worker] listening on topic", TOPIC_NAME);
+async function main() {
+    startHealthServer();
+    await pollOutbox();
 }
 
 main().catch(error => {

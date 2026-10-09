@@ -49,7 +49,7 @@ export const Appbar = () => {
             <div className="flex items-center gap-1">
                 <div>
                     <LinkButton onClick={() => (
-                        router.push("https://github.com/Shivranjan-In/Zapier")
+                        router.push("https://github.com/Shivranjan-In/Zapier-automation")
                     )}> GitHub </LinkButton>
 
                 </div>

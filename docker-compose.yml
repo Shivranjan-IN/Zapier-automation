@@ -1,0 +1,103 @@
+name: zapier-automation
+
+x-db-env: &db-env
+  DATABASE_URL: postgresql://postgres:postgres@db:5432/zapier
+
+services:
+  # ---------- infrastructure ----------
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: zapier
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d zapier"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # ---------- schema + catalog ----------
+  migrate:
+    build: ./hooks
+    command: npx prisma migrate deploy
+    environment: *db-env
+    depends_on:
+      db:
+        condition: service_healthy
+
+  seed:
+    # Built from the backend's builder stage so `tsx` + scripts/ are available.
+    build:
+      context: ./primary-backend
+      target: builder
+    command: npx tsx scripts/seed-catalog.ts
+    environment: *db-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  # ---------- application ----------
+  backend:
+    restart: unless-stopped
+    build: ./primary-backend
+    environment:
+      <<: *db-env
+      JWT_SECRET: ${JWT_SECRET:-devsecret-change-me}
+    ports:
+      - "3001:3001"
+    depends_on:
+      db:
+        condition: service_healthy
+      seed:
+        condition: service_completed_successfully
+
+  hooks:
+    restart: unless-stopped
+    build: ./hooks
+    environment: *db-env
+    ports:
+      - "3002:3002"
+    depends_on:
+      db:
+        condition: service_healthy
+      seed:
+        condition: service_completed_successfully
+
+  worker:
+    restart: unless-stopped
+    build: ./worker
+    environment:
+      <<: *db-env
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_FROM: ${SMTP_FROM:-}
+    depends_on:
+      db:
+        condition: service_healthy
+      seed:
+        condition: service_completed_successfully
+
+  frontend:
+    restart: unless-stopped
+    build:
+      context: ./frontend
+      args:
+        # The browser calls these directly, so they must be reachable from the
+        # host (that's why backend/hooks publish 3001/3002 below).
+        NEXT_PUBLIC_API_URL: http://localhost:3001/api/v1
+        NEXT_PUBLIC_HOOKS_URL: http://localhost:3002
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+      - hooks
+
+volumes:
+  pgdata:

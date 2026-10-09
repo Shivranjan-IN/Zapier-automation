@@ -1,0 +1,71 @@
+# Render Blueprint — deploys the 3 backend services as free web services.
+# The frontend deploys separately on Vercel (Root Directory = `frontend`).
+# Postgres is Supabase (not Render). Kafka is gone — the worker polls the DB outbox.
+#
+# After your first deploy, set CORS_ORIGIN to your Vercel URL and paste your
+# Supabase DATABASE_URL into each service (Sync: off means Render won't overwrite it).
+
+services:
+  - type: web
+    name: zapier-backend
+    runtime: node
+    plan: free
+    rootDir: primary-backend
+    buildCommand: >-
+      npm install &&
+      DATABASE_URL="${DATABASE_URL:-postgresql://user:pass@localhost:5432/postgres}" npx prisma generate &&
+      npm run build
+    startCommand: node dist/index.js
+    healthCheckPath: /health
+    numInstances: 1
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ORIGIN
+        sync: false
+
+  - type: web
+    name: zapier-hooks
+    runtime: node
+    plan: free
+    rootDir: hooks
+    buildCommand: >-
+      npm install &&
+      DATABASE_URL="${DATABASE_URL:-postgresql://user:pass@localhost:5432/postgres}" npx prisma generate &&
+      npm run build
+    startCommand: node dist/index.js
+    healthCheckPath: /health
+    numInstances: 1
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+
+  - type: web
+    name: zapier-worker
+    runtime: node
+    plan: free
+    rootDir: worker
+    buildCommand: >-
+      npm install &&
+      DATABASE_URL="${DATABASE_URL:-postgresql://user:pass@localhost:5432/postgres}" npx prisma generate &&
+      npm run build
+    startCommand: node dist/index.js
+    healthCheckPath: /health
+    numInstances: 1
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false

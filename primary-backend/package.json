@@ -29,6 +29,7 @@
   "devDependencies": {
     "@types/jsonwebtoken": "^9.0.10",
     "prisma": "^7.10.0",
-    "tsx": "^4.23.15"
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
   }
 }

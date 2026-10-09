@@ -18,5 +18,8 @@
     "kafkajs": "^2.2.4",
     "pg": "^8.23.1",
     "prisma": "^7.10.0"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
   }
 }

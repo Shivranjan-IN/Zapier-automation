@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express";
+import cors from "cors";
 import { createHmac, timingSafeEqual } from "crypto";
 import { PrismaClient, Prisma } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -7,12 +8,25 @@ import { PrismaPg } from "@prisma/adapter-pg";
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const client = new PrismaClient({ adapter });
 
+// Allowed browser origins (comma-separated). Unset => reflect any origin (dev).
+const allowedOrigins = (process.env.CORS_ORIGIN ?? "")
+    .split(",")
+    .map(origin => origin.trim())
+    .filter(Boolean);
+
 const app = express();
+app.use(cors({
+    origin: allowedOrigins.length > 0 ? allowedOrigins : true
+}));
 app.use(express.json({
     verify: (req, _res, buf) => {
         (req as express.Request & { rawBody?: Buffer }).rawBody = buf;
     }
 }));
+
+app.get("/health", (_req, res) => {
+    res.json({ ok: true, service: "hooks" });
+});
 
 function asRecord(value: unknown): Record<string, unknown> {
     if (value && typeof value === "object" && !Array.isArray(value)) {
@@ -141,6 +155,7 @@ app.post("/hooks/github/:zapId", async (req, res) => {
     }
 });
 
-app.listen(3002, () => {
-    console.log("Hooks server is running on port 3002");
+const port = Number(process.env.PORT || 3002);
+app.listen(port, () => {
+    console.log(`Hooks server is running on port ${port}`);
 });

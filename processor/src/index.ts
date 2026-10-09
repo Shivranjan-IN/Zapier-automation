@@ -10,7 +10,7 @@ const client = new PrismaClient({ adapter });
 
 const kafka = new Kafka({
     clientId: 'outbox-processor',
-    brokers: ['localhost:9092']
+    brokers: [process.env.KAFKA_BROKER || 'localhost:9092']
 });
 
 async function main() {
