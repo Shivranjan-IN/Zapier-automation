@@ -99,6 +99,40 @@ async function sendRealEmail(config: Record<string, unknown>, triggerData: Recor
     };
 }
 
+async function sendResendEmail(params: { to: string; subject: string; text: string; fallbackFrom: string }) {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+        throw new Error("RESEND_API_KEY is not set");
+    }
+    const from = process.env.RESEND_FROM || params.fallbackFrom || "onboarding@resend.dev";
+    const response = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            from,
+            to: [params.to],
+            subject: params.subject,
+            text: params.text || params.subject
+        })
+    });
+    const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!response.ok) {
+        throw new Error(
+            `Resend API failed: HTTP ${response.status} ${JSON.stringify(data).slice(0, 300)}`
+        );
+    }
+    return {
+        provider: "resend",
+        to: params.to,
+        from,
+        subject: params.subject,
+        id: data.id
+    };
+}
+
 async function appendToSheet(config: Record<string, unknown>, triggerData: Record<string, unknown>) {
     const url = String(config.webhookUrl ?? "").trim();
     if (!url || !/^https?:\/\//.test(url)) {
@@ -162,6 +196,16 @@ async function executeAction(
                 String(config.message ?? config.body ?? ""),
                 triggerData
             );
+            const configuredFrom = typeof config.from === "string" ? config.from.trim() : "";
+            const fallbackFrom = configuredFrom
+                ? interpolate(configuredFrom, triggerData)
+                : process.env.SMTP_FROM || process.env.SMTP_USER || "";
+
+            // Prefer Resend (HTTPS, works on Render free). Falls back to SMTP,
+            // then to a simulated send if neither is configured.
+            if (process.env.RESEND_API_KEY) {
+                return await sendResendEmail({ to, subject, text: body, fallbackFrom });
+            }
 
             if (getMailer()) {
                 return await sendRealEmail(config, triggerData);
